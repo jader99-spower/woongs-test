@@ -4,10 +4,16 @@ import { type NextRequest, NextResponse } from 'next/server';
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // 환경 변수가 없으면 세션 갱신 없이 통과
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return response;
+  }
+
+  try {
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -18,11 +24,12 @@ export async function proxy(request: NextRequest) {
           });
         },
       },
-    },
-  );
+    });
 
-  // 세션 만료 시 자동 갱신
-  await supabase.auth.getUser();
+    await supabase.auth.getUser();
+  } catch {
+    // 세션 갱신 실패는 무시 — 요청은 계속 처리
+  }
 
   return response;
 }
